@@ -1,10 +1,18 @@
-// Optional: Slow scroll pause on hover
-const track = document.querySelector('.scroll-track');
+const scrollHeight = document.body.scrollHeight;
+const halfHeight = scrollHeight / 2;
 
-track.addEventListener('mouseenter', () => {
-  track.style.animationPlayState = 'paused';
-});
+window.addEventListener("scroll", () => {
+  if (window.scrollY >= halfHeight) {
+    window.scrollTo({
+      top: 1,
+      behavior: "instant"
+    });
+  }
 
-track.addEventListener('mouseleave', () => {
-  track.style.animationPlayState = 'running';
+  if (window.scrollY <= 0) {
+    window.scrollTo({
+      top: halfHeight - 1,
+      behavior: "instant"
+    });
+  }
 });
