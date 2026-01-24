@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Infinite Scrapbook Portfolio</title>
+    <style>
+        /* RESET & BASE STYLES */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            /* The beige color from your reference */
+            background-color: #E6E1D3; 
+            color: #1a1a1a;
+            font-family: 'Courier New', Courier, monospace; /* Monospace for the "raw" feel */
+            overflow: hidden; /* Hide the main body scrollbar */
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* FIXED CENTER TEXT 
+           This floats above everything and ignores scrolling 
+        */
+        .fixed-center-text {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+            text-align: center;
+            pointer-events: none; /* Let clicks pass through to images behind */
+            mix-blend-mode: difference; /* Optional: Makes text readable on dark/light images */
+            color: #fff; 
+            width: 300px;
+        }
+
+        .fixed-center-text p {
+            font-size: 0.85rem;
+            line-height: 1.4;
+            letter-spacing: -0.5px;
+            text-transform: uppercase;
+        }
+
+        /* SCROLL CONTAINER 
+           This is the window we look through
+        */
+        .scroll-container {
+            height: 100vh;
+            overflow-y: scroll;
+            overflow-x: hidden;
+            position: relative;
+            /* Hide scrollbar for aesthetics */
+            scrollbar-width: none; /* Firefox */
+            -ms-overflow-style: none; /* IE/Edge */
+        }
+        
+        .scroll-container::-webkit-scrollbar {
+            display: none; /* Chrome/Safari */
+        }
+
+        /* CONTENT WRAPPER
+           Holds the 3 sets of images
+        */
+        .content-wrapper {
+            padding: 10vh 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center; /* Default center, but overridden by children */
+            width: 100%;
+        }
+
+        /* IMAGE STYLES 
+           The "Scrapbook" look
+        */
+        .scrapbook-item {
+            position: relative;
+            margin-bottom: 120px; /* Space between rows */
+            transition: transform 0.3s ease;
+            cursor: pointer;
+        }
+
+        .scrapbook-item img {
+            display: block;
+            width: 100%;
+            height: auto;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.15);
+            /* Subtle texture/grain filter */
+            filter: contrast(110%) brightness(90%);
+        }
+
+        .scrapbook-item:hover {
+            z-index: 5;
+            transform: scale(1.02);
+        }
+
+        /* HELPER CLASSES FOR RANDOM LAYOUT
+           These are applied via JS to scatter the images
+        */
+        .align-left { align-self: flex-start; margin-left: 10%; }
+        .align-center { align-self: center; }
+        .align-right { align-self: flex-end; margin-right: 10%; }
+        
+        /* Offset margins to break the grid */
+        .offset-neg { transform: translateY(-30px); }
+        .offset-pos { transform: translateY(30px); }
+
+    </style>
+</head>
+<body>
+
+    <div class="fixed-center-text">
+        <p>I make videos for the internet that get people excited about living in the real world.</p>
+    </div>
+
+    <div class="scroll-container" id="scrollContainer">
+        <div class="content-wrapper" id="contentWrapper">
+            </div>
+    </div>
+
+    <script>
+        // 1. CONFIGURATION
+        // Replace these with your actual image URLs
+        const imageUrls = [
+            "https://images.unsplash.com/photo-1542038784456-1ea8e935640e?w=600&q=80",
+            "https://images.unsplash.com/photo-1552168324-d612d77725e3?w=500&q=80",
+            "https://images.unsplash.com/photo-1516483638261-f4dbaf036963?w=800&q=80",
+            "https://images.unsplash.com/photo-1523906834658-6e24ef2386f9?w=400&q=80",
+            "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?w=600&q=80",
+            "https://images.unsplash.com/photo-1500917293891-ef795e70e1f6?w=700&q=80",
+            "https://images.unsplash.com/photo-1469334031218-e382a71b716b?w=500&q=80"
+        ];
+
+        const container = document.getElementById('scrollContainer');
+        const wrapper = document.getElementById('contentWrapper');
+
+        // 2. HELPER TO GENERATE RANDOM LAYOUT
+        function createInfoBlock(src, index) {
+            const div = document.createElement('div');
+            div.classList.add('scrapbook-item');
+            
+            // Random Width (between 250px and 500px)
+            const width = Math.floor(Math.random() * (500 - 250 + 1) + 250);
+            div.style.width = `${width}px`;
+
+            // Random Alignment
+            const alignments = ['align-left', 'align-center', 'align-right'];
+            const randomAlign = alignments[Math.floor(Math.random() * alignments.length)];
+            div.classList.add(randomAlign);
+
+            // Random Vertical Offset (to break strict lines)
+            const offsets = ['offset-neg', 'offset-pos', ''];
+            const randomOffset = offsets[Math.floor(Math.random() * offsets.length)];
+            if(randomOffset) div.classList.add(randomOffset);
+
+            const img = document.createElement('img');
+            img.src = src;
+            div.appendChild(img);
+
+            return div;
+        }
+
+        // 3. BUILD THE LISTS
+        // We create a "Set" of HTML.
+        function generateSet() {
+            const fragment = document.createDocumentFragment();
+            imageUrls.forEach((url, i) => {
+                const item = createInfoBlock(url, i);
+                fragment.appendChild(item);
+            });
+            return fragment;
+        }
+
+        // 4. INJECT SETS (CLONING STRATEGY)
+        // We need 3 sets: [Top Clone] [Original Middle] [Bottom Clone]
+        const setA = document.createElement('div'); 
+        setA.style.width = '100%'; setA.style.display = 'flex'; setA.style.flexDirection = 'column';
+        setA.appendChild(generateSet());
+        
+        const setB = setA.cloneNode(true); // The middle "real" set
+        const setC = setA.cloneNode(true); // The bottom clone
+
+        wrapper.appendChild(setA);
+        wrapper.appendChild(setB);
+        wrapper.appendChild(setC);
+
+        // 5. INFINITE SCROLL LOGIC
+        let setHeight = 0;
+
+        // Wait for images to load to calculate height correctly
+        window.addEventListener('load', () => {
+            setHeight = setA.offsetHeight;
+            
+            // Initial Jump: Start user in the Middle (Top of Set B)
+            container.scrollTop = setHeight;
+
+            container.addEventListener('scroll', handleScroll);
+        });
+
+        function handleScroll() {
+            const scrollTop = container.scrollTop;
+
+            // IF we scroll UP past the top of Set B -> Teleport to bottom of Set B
+            if (scrollTop <= 10) { // Using 10px buffer
+                container.scrollTop = setHeight + scrollTop; 
+            }
+            // IF we scroll DOWN past the end of Set B -> Teleport to top of Set B
+            else if (scrollTop >= (setHeight * 2)) {
+                container.scrollTop = scrollTop - setHeight;
+            }
+        }
+
+    </script>
+</body>
+</html>
