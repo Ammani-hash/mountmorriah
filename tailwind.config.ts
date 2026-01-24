@@ -85,7 +85,7 @@ export default {
       fontFamily: {
         sans: ["var(--font-sans)"],
         serif: ["var(--font-serif)"],
-        mono: ["var(--font-mono)"],
+        mono: ["'Courier New'", "Courier", "monospace"],
       },
       keyframes: {
         "accordion-down": {
