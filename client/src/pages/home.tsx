@@ -35,6 +35,7 @@ export default function Home() {
     { id: 11, imageUrl: `${import.meta.env.BASE_URL}assets/11.jpg`, caption: "Lost tapes", width: 360, alignment: "left", offset: "pos" },
     { id: 12, imageUrl: `${import.meta.env.BASE_URL}assets/12.jpg`, caption: "Faded memory", width: 420, alignment: "center", offset: "none" },
     { id: 13, imageUrl: `${import.meta.env.BASE_URL}assets/13.jpg`, caption: "Last frame", width: 380, alignment: "right", offset: "neg" },
+    { id: 14, imageUrl: `${import.meta.env.BASE_URL}assets/14.jpg`, caption: "Last frame", width: 380, alignment: "right", offset: "neg" },
   ];
 
   // Infinite Scroll Logic
@@ -192,6 +193,9 @@ export default function Home() {
           ))}
         </div>
       </div>
+
+      {/* Film Grain Overlay */}
+      <div className="film-grain" aria-hidden="true" />
     </div>
   );
 }
