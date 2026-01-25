@@ -1,43 +1,46 @@
 import { useRef, useEffect, useState } from "react";
-import { useScrapbookItems, useDeleteScrapbookItem } from "@/hooks/use-scrapbook";
 import { ScrapbookItemCard } from "@/components/ScrapbookItemCard";
-import { AddScrapbookDialog } from "@/components/AddScrapbookDialog";
-import { Loader2, AlertCircle } from "lucide-react";
-import { type ScrapbookItem } from "@shared/schema";
-import { useToast } from "@/hooks/use-toast";
+
+interface ScrapbookItem {
+  id: number;
+  imageUrl: string;
+  caption: string | null;
+  width: number | null;
+  alignment: string | null;
+  offset: string | null;
+}
 
 export default function Home() {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const { data: items, isLoading, error } = useScrapbookItems();
-  const { mutate: deleteItem } = useDeleteScrapbookItem();
-  const { toast } = useToast();
-  
+  const isResetting = useRef(false);
+
   // State to track if we've done the initial scroll position setup
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // Default items if empty to show the style
-  const defaultItems: ScrapbookItem[] = [
-    { id: 1, imageUrl: "https://images.unsplash.com/photo-1516961642265-531546e84af2?q=80&w=1000&auto=format&fit=crop", caption: "Analog moments", width: 400, alignment: "left", offset: "pos" },
-    { id: 2, imageUrl: "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?q=80&w=1000&auto=format&fit=crop", caption: "Mountain hikes", width: 350, alignment: "right", offset: "neg" },
-    { id: 3, imageUrl: "https://images.unsplash.com/photo-1504198458649-3128b932f49e?q=80&w=1000&auto=format&fit=crop", caption: "City lights", width: 500, alignment: "center", offset: "none" },
-    { id: 4, imageUrl: "https://images.unsplash.com/photo-1516233758813-a38d024919c5?q=80&w=1000&auto=format&fit=crop", caption: "Raw textures", width: 300, alignment: "left", offset: "pos" },
+  // Auto-scroll refs
+  const scrollDirection = useRef<'down' | 'up'>('down');
+  const autoScrollRef = useRef<number | null>(null);
+  const userScrollTimeout = useRef<NodeJS.Timeout | null>(null);
+
+  // Default items using local static images
+  const displayItems: ScrapbookItem[] = [
+    { id: 1, imageUrl: `${import.meta.env.BASE_URL}assets/1.jpg`, caption: "Analog moments", width: 400, alignment: "left", offset: "pos" },
+    { id: 2, imageUrl: `${import.meta.env.BASE_URL}assets/2.jpg`, caption: "Mountain hikes", width: 350, alignment: "right", offset: "neg" },
+    { id: 3, imageUrl: `${import.meta.env.BASE_URL}assets/3.jpg`, caption: "City lights", width: 500, alignment: "center", offset: "none" },
+    { id: 4, imageUrl: `${import.meta.env.BASE_URL}assets/4.jpg`, caption: "Raw textures", width: 300, alignment: "left", offset: "pos" },
+    { id: 7, imageUrl: `${import.meta.env.BASE_URL}assets/7.jpg`, caption: "Golden hour", width: 380, alignment: "right", offset: "neg" },
+    { id: 8, imageUrl: `${import.meta.env.BASE_URL}assets/8.jpg`, caption: "Urban escape", width: 450, alignment: "left", offset: "pos" },
+    { id: 9, imageUrl: `${import.meta.env.BASE_URL}assets/9.jpg`, caption: "Quiet corners", width: 320, alignment: "center", offset: "none" },
+    { id: 10, imageUrl: `${import.meta.env.BASE_URL}assets/10.jpg`, caption: "Film grain", width: 400, alignment: "right", offset: "neg" },
+    { id: 11, imageUrl: `${import.meta.env.BASE_URL}assets/11.jpg`, caption: "Lost tapes", width: 360, alignment: "left", offset: "pos" },
+    { id: 12, imageUrl: `${import.meta.env.BASE_URL}assets/12.jpg`, caption: "Faded memory", width: 420, alignment: "center", offset: "none" },
+    { id: 13, imageUrl: `${import.meta.env.BASE_URL}assets/13.jpg`, caption: "Last frame", width: 380, alignment: "right", offset: "neg" },
   ];
-
-  const displayItems = (items && items.length > 0) ? items : defaultItems;
-
-  const handleDelete = (id: number) => {
-    if (confirm("Are you sure you want to rip this page out?")) {
-      deleteItem(id, {
-        onSuccess: () => toast({ title: "Deleted", description: "Item removed from scrapbook." }),
-        onError: () => toast({ title: "Error", description: "Could not delete item.", variant: "destructive" }),
-      });
-    }
-  };
 
   // Infinite Scroll Logic
   useEffect(() => {
     const container = scrollRef.current;
-    if (!container || isLoading || displayItems.length === 0) return;
+    if (!container || displayItems.length === 0) return;
 
     // We render 3 sets: [Set A] [Set B] [Set C]
     // Initial position should be at start of Set B
@@ -49,45 +52,109 @@ export default function Home() {
     }
 
     const handleScroll = () => {
-      const scrollTop = container.scrollTop;
-      const buffer = 50; // Small buffer to prevent glitching at exact edges
+      if (isResetting.current) return;
 
-      // If we scroll into Set A (top set), jump to corresponding point in Set B
-      if (scrollTop <= buffer) {
-        container.scrollTop = scrollTop + singleSetHeight;
-      }
-      // If we scroll into Set C (bottom set), jump to corresponding point in Set B
-      else if (scrollTop >= singleSetHeight * 2 - buffer) {
-        container.scrollTop = scrollTop - singleSetHeight;
+      // Recalculate fresh each time - images may have loaded
+      const currentSingleSetHeight = container.scrollHeight / 3;
+      const scrollTop = container.scrollTop;
+      // Dynamic buffer: 10% of viewport height or minimum 100px for better edge detection
+      const buffer = Math.max(100, container.clientHeight * 0.1);
+
+      // Check if we need to reset position
+      if (scrollTop <= buffer || scrollTop >= currentSingleSetHeight * 2 - buffer) {
+        isResetting.current = true;
+
+        // Use requestAnimationFrame for smoother visual updates
+        requestAnimationFrame(() => {
+          // Read CURRENT scroll position inside rAF
+          const currentScrollTop = container.scrollTop;
+          const freshSetHeight = container.scrollHeight / 3;
+
+          // If we scroll into Set A (top set), jump to corresponding point in Set B
+          if (currentScrollTop <= buffer) {
+            container.scrollTop = currentScrollTop + freshSetHeight;
+          }
+          // If we scroll into Set C (bottom set), jump to corresponding point in Set B
+          else if (currentScrollTop >= freshSetHeight * 2 - buffer) {
+            container.scrollTop = currentScrollTop - freshSetHeight;
+          }
+
+          // Longer delay before allowing next reset
+          setTimeout(() => {
+            isResetting.current = false;
+          }, 50);
+        });
       }
     };
 
     container.addEventListener("scroll", handleScroll);
     return () => container.removeEventListener("scroll", handleScroll);
-  }, [isLoading, displayItems, isInitialized]);
+  }, [displayItems, isInitialized]);
 
-  if (isLoading) {
-    return (
-      <div className="h-screen w-full flex items-center justify-center bg-[#E6E1D3]">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-8 h-8 animate-spin text-stone-800" />
-          <p className="font-mono uppercase tracking-widest text-xs">Loading Memories...</p>
-        </div>
-      </div>
-    );
-  }
+  // Auto-scroll effect
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container || !isInitialized) return;
 
-  if (error) {
-    return (
-      <div className="h-screen w-full flex items-center justify-center bg-[#E6E1D3] text-red-800">
-        <div className="flex flex-col items-center gap-4 p-8 border-2 border-red-800">
-          <AlertCircle className="w-8 h-8" />
-          <p className="font-mono uppercase tracking-widest text-sm">Error Loading Scrapbook</p>
-          <p className="font-mono text-xs">{error.message}</p>
-        </div>
-      </div>
-    );
-  }
+    const SCROLL_SPEED = 2; // pixels per frame
+    const PAUSE_DURATION = 1500; // ms to pause after user interaction
+
+    // Auto-scroll animation loop
+    const autoScroll = () => {
+      if (!container) return;
+      const delta = scrollDirection.current === 'down' ? SCROLL_SPEED : -SCROLL_SPEED;
+      container.scrollTop += delta;
+      autoScrollRef.current = requestAnimationFrame(autoScroll);
+    };
+
+    const startAutoScroll = () => {
+      if (autoScrollRef.current) return;
+      autoScrollRef.current = requestAnimationFrame(autoScroll);
+    };
+
+    const stopAutoScroll = () => {
+      if (autoScrollRef.current) {
+        cancelAnimationFrame(autoScrollRef.current);
+        autoScrollRef.current = null;
+      }
+      if (userScrollTimeout.current) {
+        clearTimeout(userScrollTimeout.current);
+      }
+      userScrollTimeout.current = setTimeout(startAutoScroll, PAUSE_DURATION);
+    };
+
+    // Detect user scroll direction via wheel event
+    const handleWheel = (e: WheelEvent) => {
+      scrollDirection.current = e.deltaY > 0 ? 'down' : 'up';
+      stopAutoScroll();
+    };
+
+    // Handle touch events for mobile
+    let touchStartY = 0;
+    const handleTouchStart = (e: TouchEvent) => {
+      touchStartY = e.touches[0].clientY;
+      stopAutoScroll();
+    };
+    const handleTouchMove = (e: TouchEvent) => {
+      const touchY = e.touches[0].clientY;
+      scrollDirection.current = touchY < touchStartY ? 'down' : 'up';
+      touchStartY = touchY;
+    };
+
+    // Initialize and start
+    container.addEventListener('wheel', handleWheel, { passive: true });
+    container.addEventListener('touchstart', handleTouchStart, { passive: true });
+    container.addEventListener('touchmove', handleTouchMove, { passive: true });
+    startAutoScroll();
+
+    return () => {
+      container.removeEventListener('wheel', handleWheel);
+      container.removeEventListener('touchstart', handleTouchStart);
+      container.removeEventListener('touchmove', handleTouchMove);
+      if (autoScrollRef.current) cancelAnimationFrame(autoScrollRef.current);
+      if (userScrollTimeout.current) clearTimeout(userScrollTimeout.current);
+    };
+  }, [isInitialized]);
 
   return (
     <div className="h-screen w-full overflow-hidden relative bg-[#E6E1D3]">
@@ -96,31 +163,35 @@ export default function Home() {
         I make videos for the internet that get people excited about living in the real world.
       </div>
 
+      {/* Fixed Footer Navigation */}
+      <div className="fixed-footer">
+        <a href="#">Youtube</a>
+        <a href="#">Newsletter</a>
+        <a href="#">Work With Me</a>
+        <a href="#">Contact</a>
+      </div>
+
       {/* Main Scroll Container */}
-      <div 
+      <div
         ref={scrollRef}
-        className="h-full w-full overflow-y-auto no-scrollbar scroll-smooth"
-        style={{ scrollBehavior: 'auto' }} // auto needed for instant jumps
+        className="h-full w-full overflow-y-auto no-scrollbar"
+        style={{ scrollBehavior: 'auto', willChange: 'scroll-position' }}
       >
-        <div className="flex flex-col w-full max-w-4xl mx-auto px-4 py-20 min-h-screen">
+        <div className="flex flex-col w-full px-8 md:px-16 lg:px-24 py-20 min-h-screen">
           {/* Render 3 sets for infinite loop illusion */}
           {[0, 1, 2].map((setIndex) => (
-            <div key={`set-${setIndex}`} className="flex flex-col w-full pb-20">
+            <div key={`set-${setIndex}`} className="grid grid-cols-1 md:grid-cols-3 gap-12 md:gap-16 lg:gap-20 w-full pb-20">
               {displayItems.map((item, index) => (
-                <ScrapbookItemCard 
-                  key={`${setIndex}-${item.id}`} 
-                  item={item} 
+                <ScrapbookItemCard
+                  key={`${setIndex}-${item.id}`}
+                  item={item}
                   index={index}
-                  onDelete={setIndex === 1 ? handleDelete : undefined} // Only enable interactions on middle set ideally, but for now enabling on middle set
-                  isAdmin={true} // Assuming admin for demo
                 />
               ))}
             </div>
           ))}
         </div>
       </div>
-
-      <AddScrapbookDialog />
     </div>
   );
 }
